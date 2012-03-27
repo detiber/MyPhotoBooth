@@ -8,8 +8,10 @@ TODO
     - After picture sequence taken
     - To temporary directory
     - Delete files from camera after downloaded
+    - Display pictures after downloaded briefly in order
 - Create photostrip
     - merge pictures with template
+    - Display photostrip until ready for next shoot
     - archive pictures and photostrip
     - upload to flickr if enabled
     - email to user if emailAddress entered
@@ -21,6 +23,8 @@ TODO
     - banner graphic
     - number of pictures to take
     - photostrip template
+- Add support for other tetherable cameras
+- Add support for other photosharing sites
 - Code cleanup
     - break up into modules
 - Package
