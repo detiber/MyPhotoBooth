@@ -1,1 +1,31 @@
+Requirements
+    - gphoto2
+    - ptpcam (part of chdk)
 
+TODO
+======
+- File Downloading from camera 
+    - After picture sequence taken
+    - To temporary directory
+    - Delete files from camera after downloaded
+- Create photostrip
+    - merge pictures with template
+    - archive pictures and photostrip
+    - upload to flickr if enabled
+    - email to user if emailAddress entered
+- Add config file parsing
+    - flickr bool
+    - flickr acct info
+    - email from address
+    - email relay info
+    - banner graphic
+    - number of pictures to take
+    - photostrip template
+- Code cleanup
+    - break up into modules
+- Package
+    - Script to create RPM/Deb package
+- Makefile
+    - targets for installing, cleaning, packaging
+- submit to fedora repo
+    - may need to package ptpcam as a prerequisite
