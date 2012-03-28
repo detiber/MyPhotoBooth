@@ -24,7 +24,16 @@ pygtk.require("2.0")
 import gtk
 import pexpect
 import time
+import tempfile
+import os
+import shutil
 
+
+# These variables should end up in a config file eventually
+# Globals == Bad
+NUMPICS = 1
+DEBUG = 1
+ARCHIVEDIR = '/home/detiber/firstbirthday'
 
 class MyPhotoBoothApp(object):
     def __init__(self):
@@ -35,73 +44,93 @@ class MyPhotoBoothApp(object):
         self.window.show()
         self.statusbar = self.builder.get_object("statusbar")
         self.emailTextbox = self.builder.get_object("emailTextbox")
+        self.resetDisplay()
 
     def on_mainWindow_destroy(self, widget):
         gtk.main_quit()
 
     def on_button_clicked(self, widget):
-        print "Go Button clicked"
-        print "Email Address: %s" % self.emailTextbox.get_text()
-        camera = Camera(self.statusbar)
-        camera.takePictures(4)
-
-        #Process pictures here, probably after camera = None to allow gphoto to connect.
-
+        if DEBUG: print "Email Address: %s" % self.emailTextbox.get_text()
+        self.statusbar.push(0, "")
+        camera = Camera()
+        camera.takePictures(NUMPICS)
         camera = None
+        self.processPictures()
         self.resetDisplay()
-        print "ready for next person"
-        self.statusbar.push(0, "Ready")
+
+    def processPictures(self):
+        tmpdir = tempfile.mkdtemp(prefix="myphotobooth")
+        if DEBUG: print "created tempdir: %s" % tmpdir 
+        self.downloadPictures(tmpdir)
+
+        # display pictures breifly in order
+        
+        # create photostrip
+        
+        # display photostrip ( have resetDisplay clear this )
+
+        # archive pictures/photostrip to ARCHIVEDIR
+        for file in os.listdir(tmpdir):
+            shutil.move(os.path.join(tmpdir,file),ARCHIVEDIR)
+        
+        # upload pictures/photostrip to Flickr
+        
+        # email pictures/photostrip
+        
+        if DEBUG: print "removing tempdir: %s" % tmpdir
+        shutil.rmtree(tmpdir)                
+
+    def downloadPictures(self, dir):
+        os.chdir(dir)
+        os.system('gphoto2 -P --force-overwrite')
+        os.system('gphoto2 -DR')
+        if DEBUG: print "files downloaded: %s" % os.listdir(dir)
 
     def resetDisplay(self):
-        print "resetting display"
+        if DEBUG: print "resetting display"
         self.emailTextbox.set_text("")
+        if DEBUG: print "ready for next person"
+        self.statusbar.push(0, "Ready")
+
 
 class Camera(object):
-    def __init__(self, statusbar):
-        self.statusbar = statusbar
-        print 'connecting camera'
-        self.statusbar.push(0, "Initializing Camera...")
+    def __init__(self):
+        if DEBUG: print 'connecting camera'
         self.conn = pexpect.spawn('ptpcam --chdk', timeout=15)
         check = self.connectionCheck()
         while check == 1:
             check = self.connectionCheck()
-
+    
     def takePictures(self, numPics):
         self.conn.sendline('mode 1')
-        print 'opening lens'
+        if DEBUG: print 'opening lens'
         time.sleep(5)
         self.conn.expect('<conn>')
-        print 'lens opened'
-        print "getting ready to take %s pictures" % numPics
-        self.statusbar.push(0, "Preparing to take %s pictures" % numPics)
+        if DEBUG: print 'lens opened'
+        if DEBUG: print "getting ready to take %s pictures" % numPics
         command="lua "
         for i in range(numPics):
             command += "shoot();"
-        print "issuing command: %s" % command
+        if DEBUG: print "issuing command: %s" % command
         self.conn.sendline(command)
         time.sleep(numPics * 5)
-        print '%s pics snapped' % numPics
-        self.statusbar.push(0, "%s pictures taken" % numPics)
+        if DEBUG: print '%s pics snapped' % numPics
 
     def connectionCheck(self):
-        print 'testing camera connection'
-        self.statusbar.push(0, "Testing Camera Connection...")
+        if DEBUG: print 'testing camera connection'
         self.conn.sendline('r')
         i = self.conn.expect (['<conn>', 'ERROR: Could not open session!', 'ERROR: Could not close session!', '<    >'])
         if i == 0:
-            print 'camera connected'
-            self.statusbar.push(0, "Camera Connected")
+            if DEBUG: print 'camera connected'
             return 0
         else:
             return 1
 
     def __del__(self):
-        print 'closing camera connection...'
-        self.statusbar.push(0, "Closing Camera Connection...")
+        if DEBUG: print 'closing camera connection...'
         self.conn.sendline('quit')
         self.conn.expect(pexpect.EOF)
-        print 'connection closed'
-        self.statusbar.push(0, "Camera Connection Closed")
+        if DEBUG: print 'connection closed'
 
 
 def main():
