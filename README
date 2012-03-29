@@ -3,6 +3,17 @@ Requirements
     - ptpcam (part of chdk)
     - python-flickr
 
+defaults:
+    debug: False
+    archivedir: ~/myphotobooth
+    numpics: 4
+
+To override defaults create /etc/myphotobooth.conf
+[myphotobooth]
+debug: True
+archivedir: /home/detiber/firstbirthday
+numpics: 4
+
 TODO
 ======
 - Display pictures after downloaded briefly in order
@@ -19,13 +30,12 @@ TODO
     - http://docs.python.org/library/email-examples.html 
     - also, for my use, will need to setup relay to ISP mail host on 
       local smtp server
-- Add config file parsing
+- Add to config file parsing
     - flickr bool
     - flickr acct info
     - email from address
     - email relay info
     - banner graphic
-    - number of pictures to take
     - photostrip template
 - Add support for other tetherable cameras
 - Add support for other photosharing sites
