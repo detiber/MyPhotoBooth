@@ -28,11 +28,11 @@ import tempfile
 import os
 import shutil
 import ConfigParser
+import logging
 
 
 class MyPhotoBoothApp(object):
-    def __init__(self, debug=False, numpics=None, archivedir=None):
-        self.debug = debug
+    def __init__(self, numpics=None, archivedir=None):
         if numpics == None:
             self.numpics = 4
         else: 
@@ -54,9 +54,9 @@ class MyPhotoBoothApp(object):
         gtk.main_quit()
 
     def on_button_clicked(self, widget):
-        if self.debug: print "Email Address: %s" % self.emailTextbox.get_text()
+        logging.debug("Email Address: %s" % self.emailTextbox.get_text())
         self.statusbar.push(0, "")
-        camera = Camera(debug = self.debug)
+        camera = Camera()
         camera.takePictures(self.numpics)
         camera = None
         self.processPictures()
@@ -64,7 +64,7 @@ class MyPhotoBoothApp(object):
 
     def processPictures(self):
         tmpdir = tempfile.mkdtemp(prefix="myphotobooth")
-        if self.debug: print "created tempdir: %s" % tmpdir 
+        logging.debug("created tempdir: %s" % tmpdir)
         self.downloadPictures(tmpdir)
 
         # display pictures breifly in order
@@ -75,9 +75,9 @@ class MyPhotoBoothApp(object):
 
         # archive pictures/photostrip to self.archivedir
         if not os.path.exists(self.archivedir):
-            if self.debug: print "%s not found, creating" % self.archivedir
+            logging.warn("%s not found, creating" % self.archivedir)
             os.makedirs(self.archivedir)
-        if self.debug: print "Moving files to: %s" % self.archivedir
+        logging.debug("Moving files to: %s" % self.archivedir)
         for file in os.listdir(tmpdir):
             shutil.move(os.path.join(tmpdir,file),self.archivedir)
         
@@ -85,26 +85,25 @@ class MyPhotoBoothApp(object):
         
         # email pictures/photostrip
         
-        if self.debug: print "removing tempdir: %s" % tmpdir
+        logging.debug("removing tempdir: %s" % tmpdir)
         shutil.rmtree(tmpdir)                
 
     def downloadPictures(self, dir):
         os.chdir(dir)
         os.system('gphoto2 -P --force-overwrite')
         os.system('gphoto2 -DR')
-        if self.debug: print "files downloaded: %s" % os.listdir(dir)
+        logging.debug("files downloaded: %s" % os.listdir(dir))
 
     def resetDisplay(self):
-        if self.debug: print "resetting display"
+        logging.debug("resetting display")
         self.emailTextbox.set_text("")
-        if self.debug: print "ready for next person"
+        logging.debug("ready for next person")
         self.statusbar.push(0, "Ready")
 
 
 class Camera(object):
-    def __init__(self, debug = False):
-        self.debug = debug
-        if self.debug: print 'connecting camera'
+    def __init__(self):
+        logging.debug('connecting camera')
         self.conn = pexpect.spawn('ptpcam --chdk', timeout=15)
         check = self.connectionCheck()
         while check == 1:
@@ -112,49 +111,56 @@ class Camera(object):
     
     def takePictures(self, numpics):
         self.conn.sendline('mode 1')
-        if self.debug: print 'opening lens'
+        logging.debug('opening lens')
         time.sleep(5)
         self.conn.expect('<conn>')
-        if self.debug: print 'lens opened'
-        if self.debug: print "getting ready to take %s pictures" % numpics
+        logging.debug('lens opened')
+        logging.debug("getting ready to take %s pictures" % numpics)
         command="lua "
         for i in range(numpics):
             command += "shoot();"
-        if self.debug: print "issuing command: %s" % command
+        logging.debug("issuing command: %s" % command)
         self.conn.sendline(command)
         time.sleep(numpics * 5)
-        if self.debug: print '%s pics snapped' % numpics
+        logging.debug('%s pics snapped' % numpics)
 
     def connectionCheck(self):
-        if self.debug: print 'testing camera connection'
+        logging.debug('testing camera connection')
         self.conn.sendline('r')
         i = self.conn.expect (['<conn>', 'ERROR: Could not open session!', 'ERROR: Could not close session!', '<    >'])
         if i == 0:
-            if self.debug: print 'camera connected'
+            logging.debug('camera connected')
             return 0
         else:
             return 1
 
     def __del__(self):
-        if self.debug: print 'closing camera connection...'
+        logging.debug('closing camera connection...')
         self.conn.sendline('quit')
         self.conn.expect(pexpect.EOF)
-        if self.debug: print 'connection closed'
+        logging.debug('connection closed')
 
 
 def main():
+
     config = ConfigParser.SafeConfigParser(allow_no_value=True)
     configfile = '/etc/myphotobooth.conf'
     try:
         config.read(configfile)
-        debug = config.get('myphotobooth', 'debug')
+        if config.get('myphotobooth', 'debug'):
+            debug=logging.DEBUG
+        else:
+            debug=logging.INFO
+        logging.basicConfig(level=debug)
+
         numpics = config.get('myphotobooth', 'numpics')
         archivedir = config.get('myphotobooth', 'archivedir')
-        app = MyPhotoBoothApp(debug = debug, numpics = int(numpics), 
+        app = MyPhotoBoothApp(numpics = int(numpics), 
                               archivedir = archivedir)
         gtk.main()
     except ConfigParser.NoSectionError:
-        print "Config file %s not found, using defaults" % configfile
+        logging.basicConfig()
+        logging.warn("Config file %s not found, using defaults" % configfile)
         app = MyPhotoBoothApp()
         gtk.main()
         
