@@ -31,6 +31,12 @@ import ConfigParser
 import logging
 import flickrapi
 
+
+logging.basicConfig()
+logger = logging.StreamHandler()
+logger.setLevel(logging.WARNING)
+
+
 class MyPhotoBoothApp(object):
     def __init__(self, useFlickr, numpics=None, archivedir=None, 
                  flickrUploader=None):
@@ -160,10 +166,7 @@ def main():
     try:
         config.read(configfile)
         if config.get('myphotobooth', 'debug'):
-            debug=logging.DEBUG
-        else:
-            debug=logging.INFO
-        logging.basicConfig(level=debug)
+            logger.setLevel(logging.DEBUG)
         if config.get('myphotobooth', 'useFlickr'):
             useFlickr = True
             flickrUploader = FlickrUploader(config.get('myphotobooth',                                         
@@ -181,11 +184,11 @@ def main():
                               flickrUploader = flickrUploader)
         gtk.main()
     except ConfigParser.NoSectionError:
-        logging.basicConfig()
         logging.warn("Config file %s not found, using defaults" % configfile)
-        app = MyPhotoBoothApp(False, logging)
+        app = MyPhotoBoothApp(False)
         gtk.main()
         
+
 
 
 if __name__ == '__main__':
