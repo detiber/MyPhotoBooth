@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # MyPhotoBooth - Photobooth app for CHDK enabled cameras 
 #   using ptpcam and gphoto2
@@ -29,10 +29,11 @@ import os
 import shutil
 import ConfigParser
 import logging
-
+import flickrapi
 
 class MyPhotoBoothApp(object):
-    def __init__(self, numpics=None, archivedir=None):
+    def __init__(self, useFlickr, numpics=None, archivedir=None, 
+                 flickrUploader=None):
         if numpics == None:
             self.numpics = 4
         else: 
@@ -41,6 +42,8 @@ class MyPhotoBoothApp(object):
             self.archivedir = '%s/myphotobooth' % os.getenv("HOME")
         else:
             self.archivedir = archivedir
+        self.useFlickr = useFlickr
+        self.flickrUploader = flickrUploader
         self.builder = gtk.Builder()
         self.builder.add_from_file("myphotobooth.glade")
         self.builder.connect_signals(self)
@@ -82,6 +85,8 @@ class MyPhotoBoothApp(object):
             shutil.move(os.path.join(tmpdir,file),self.archivedir)
         
         # upload pictures/photostrip to Flickr
+        if self.useFlickr:
+            self.flickrUploader.test()
         
         # email pictures/photostrip
         
@@ -140,9 +145,16 @@ class Camera(object):
         self.conn.expect(pexpect.EOF)
         logging.debug('connection closed')
 
+class FlickrUploader(object):
+    def __init__(self, api_key, api_secret):
+        self.api_key = api_key
+        self.api_secret = api_secret
+    
+    def test(self):
+        print self.api_key
+        print self.api_secret
 
 def main():
-
     config = ConfigParser.SafeConfigParser(allow_no_value=True)
     configfile = '/etc/myphotobooth.conf'
     try:
@@ -152,16 +164,26 @@ def main():
         else:
             debug=logging.INFO
         logging.basicConfig(level=debug)
-
+        if config.get('myphotobooth', 'useFlickr'):
+            useFlickr = True
+            flickrUploader = FlickrUploader(config.get('myphotobooth',                                         
+                                                       'flickr_api_key'),
+                                            config.get('myphotobooth', 
+                                                       'flickr_api_secret'))
+        else:
+            useFlickr = False
+            flickrUploader = None
+    
         numpics = config.get('myphotobooth', 'numpics')
         archivedir = config.get('myphotobooth', 'archivedir')
-        app = MyPhotoBoothApp(numpics = int(numpics), 
-                              archivedir = archivedir)
+        app = MyPhotoBoothApp(useFlickr, numpics = int(numpics), 
+                              archivedir = archivedir,
+                              flickrUploader = flickrUploader)
         gtk.main()
     except ConfigParser.NoSectionError:
         logging.basicConfig()
         logging.warn("Config file %s not found, using defaults" % configfile)
-        app = MyPhotoBoothApp()
+        app = MyPhotoBoothApp(False, logging)
         gtk.main()
         
 

@@ -7,12 +7,16 @@ defaults:
     debug: False
     archivedir: ~/myphotobooth
     numpics: 4
+    useFlickr: False
 
 To override defaults create /etc/myphotobooth.conf
 [myphotobooth]
 debug: True
 archivedir: /home/detiber/firstbirthday
 numpics: 4
+useFlickr: True
+flickr_api_key: XXXXXXXX
+flickr_api_secret: XXXXXX
 
 TODO
 ======
