@@ -17,19 +17,29 @@ numpics: 4
 useFlickr: True
 flickr_api_key: XXXXXXXX
 flickr_api_secret: XXXXXX
+flickr_set: myphotobooth
 
 TODO
 ======
 - Display pictures after downloaded briefly in order
+- Figure out way to deselect the go button after run is complete
+- Config file option for flickr visibility (currently forces is_public)
+- Add asynchronous operation for upload tasks (flickr/email) so that there is not as much a delay between uses
+    - show pictures for a set amount of time, and then show photostrip for a set amount of time before next use
+    - possibly set to show picture shortly after taking, rinse and repeat until number of photos wanted for strip is taken, instead of firing pictures in succession
+    - would be great to have a live view of the cam, or at least the review type picture from camera instead of having to wait for download
+- GUI for flickr api approval
+    - currently command line based
 - Create photostrip
     - merge pictures with template
     - Display photostrip until ready for next shoot
 - archive photostrip
-- upload pictures and photostrip to flickr if enabled
-    - use python-flickrapi (in fedora/deb repos)
-        - http://od-eon.com/blogs/stefan/using-python-upload-photos-flickr/
-        - http://stuvel.eu/flickrapi
-        - http://www.flickr.com/services/apps/by/detiber for api key/secret
+- Better Error Checking/handling
+    - flickr api
+    - others
+- Logging
+    - fix stdout/stderr logging with flickrapi included
+    - add log based logging
 - email pictures and photostrip to user if emailAddress entered
     - http://docs.python.org/library/email-examples.html 
     - also, for my use, will need to setup relay to ISP mail host on 
@@ -43,8 +53,12 @@ TODO
     - photostrip template
 - Add support for other tetherable cameras
 - Add support for other photosharing sites
+- Fix camera hangs (maybe requiring migrating from ptpcam to chdkptp)
 - Code cleanup
     - break up into modules
+    - Fix ugly hacks 
+    - Better checking around config file parsing
+    - refactor so that actions like email, flickr are using a plugin type architecture
 - Package
     - Script to create RPM/Deb package
 - Makefile

@@ -30,6 +30,8 @@ import shutil
 import ConfigParser
 import logging
 import flickrapi
+import datetime
+from xml.etree.ElementTree import Element, ElementTree, dump
 
 
 logging.basicConfig()
@@ -38,7 +40,7 @@ logger.setLevel(logging.WARNING)
 
 
 class MyPhotoBoothApp(object):
-    def __init__(self, useFlickr, numpics=None, archivedir=None, 
+    def __init__(self, numpics=None, archivedir=None, 
                  flickrUploader=None):
         if numpics == None:
             self.numpics = 4
@@ -48,7 +50,6 @@ class MyPhotoBoothApp(object):
             self.archivedir = '%s/myphotobooth' % os.getenv("HOME")
         else:
             self.archivedir = archivedir
-        self.useFlickr = useFlickr
         self.flickrUploader = flickrUploader
         self.builder = gtk.Builder()
         self.builder.add_from_file("myphotobooth.glade")
@@ -78,7 +79,7 @@ class MyPhotoBoothApp(object):
 
         # display pictures breifly in order
         
-        # create photostrip
+        # create photostrip and place in tmpdir
         
         # display photostrip ( have resetDisplay clear this )
 
@@ -88,13 +89,17 @@ class MyPhotoBoothApp(object):
             os.makedirs(self.archivedir)
         logging.debug("Moving files to: %s" % self.archivedir)
         for file in os.listdir(tmpdir):
-            shutil.move(os.path.join(tmpdir,file),self.archivedir)
+            newfile = os.path.join(self.archivedir,
+                                   "photobooth-%s.jpg" % datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
+            shutil.move(os.path.join(tmpdir,file),
+                        newfile)
+
+            # upload pictures/photostrip to Flickr
+            if self.flickrUploader is not None:
+                self.flickrUploader.uploadPicture(newfile)
+            # email pictures/photostrip to list for emailing
         
-        # upload pictures/photostrip to Flickr
-        if self.useFlickr:
-            self.flickrUploader.test()
-        
-        # email pictures/photostrip
+        # email pictures/photostrip from list
         
         logging.debug("removing tempdir: %s" % tmpdir)
         shutil.rmtree(tmpdir)                
@@ -152,13 +157,58 @@ class Camera(object):
         logging.debug('connection closed')
 
 class FlickrUploader(object):
-    def __init__(self, api_key, api_secret):
+    def __init__(self, api_key, api_secret, flickr_set):
         self.api_key = api_key
         self.api_secret = api_secret
-    
-    def test(self):
-        print self.api_key
-        print self.api_secret
+        self.flickr_set = flickr_set
+        self.flickr_set_id = None
+        self.flickr = flickrapi.FlickrAPI(self.api_key, self.api_secret)
+        (token, frob) = self.flickr.get_token_part_one(perms='write')
+        if not token:
+            # Update to use a Gui dialog
+            raw_input("Press ENTER after you authorized this program")
+        self.flickr.get_token_part_two((token, frob))
+        print self.flickr_set
+#self.test()
+
+    def uploadPicture(self, filename):
+        print "Uploading picture to flickr"
+        photoid = self.flickr.upload(filename=filename,is_public=1).find('photoid').text
+        print "Uploaded picture photoid: %s" % photoid
+        if self.flickr_set_id is not None:
+            print "Adding photo to existing set: %s %s" % (self.flickr_set,
+                                                           self.flickr_set_id)
+            self.flickr.photosets_addPhoto(photo_id=photoid,
+                                      photoset_id=self.flickr_set_id)
+        else:
+            print "Getting list of sets"
+            for set in self.flickr.photosets_getList().find('photosets').findall('photoset'):
+                if set.find('title').text == self.flickr_set:
+                    self.flickr_set_id = set.get('id')
+                    self.flickr.photosets_addPhoto(photo_id=photoid,
+                                                   photoset_id=self.flickr_set_id)
+                    print "Adding photoid: %s to Existing set: %s %s" % (photoid,
+                                                                         self.flickr_set,
+                                                                         self.flickr_set_id)
+
+                    break
+            if self.flickr_set_id is None:
+                result = self.flickr.photosets_create(title=self.flickr_set, primary_photo_id=photoid)
+                self.flickr_set_id = result.find('photoset').get('id')
+                print "Added photoid: %s to new set: %s %s" % (photoid,
+                                                               self.flickr_set,
+                                                               self.flickr_set_id)
+
+
+def test(self):
+        sets = self.flickr.photosets_getList().find('photosets').findall('photoset')
+        for set in sets:
+            print(set)
+            dump(set)
+            title=set.find('title').text
+            print title
+            print set.get('id')
+
 
 def main():
     config = ConfigParser.SafeConfigParser(allow_no_value=True)
@@ -168,18 +218,18 @@ def main():
         if config.get('myphotobooth', 'debug'):
             logger.setLevel(logging.DEBUG)
         if config.get('myphotobooth', 'useFlickr'):
-            useFlickr = True
             flickrUploader = FlickrUploader(config.get('myphotobooth',                                         
                                                        'flickr_api_key'),
                                             config.get('myphotobooth', 
-                                                       'flickr_api_secret'))
+                                                       'flickr_api_secret'),
+                                            config.get('myphotobooth',
+                                                       'flickr_set'))
         else:
-            useFlickr = False
             flickrUploader = None
     
         numpics = config.get('myphotobooth', 'numpics')
         archivedir = config.get('myphotobooth', 'archivedir')
-        app = MyPhotoBoothApp(useFlickr, numpics = int(numpics), 
+        app = MyPhotoBoothApp(numpics = int(numpics), 
                               archivedir = archivedir,
                               flickrUploader = flickrUploader)
         gtk.main()
