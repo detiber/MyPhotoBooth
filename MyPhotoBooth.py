@@ -31,6 +31,8 @@ import ConfigParser
 import logging
 import flickrapi
 import datetime
+import glib
+import threading
 from xml.etree.ElementTree import Element, ElementTree, dump
 
 
@@ -55,9 +57,19 @@ class MyPhotoBoothApp(object):
         self.builder.add_from_file("myphotobooth.glade")
         self.builder.connect_signals(self)
         self.window = self.builder.get_object("mainWindow")
+        self.imageWindow = self.builder.get_object("imageWindow")
+        self.imageWidget = self.builder.get_object("image")
         self.window.show()
+        self.window.maximize()
         self.statusbar = self.builder.get_object("statusbar")
         self.emailTextbox = self.builder.get_object("emailTextbox")
+        self.index = 0
+        self.upThread = None
+        self.picturesDisplayed = False
+        self.picturesUploaded = False
+        self.picturesEmailed = False
+        self.upThread = None
+        self.emailThread = None
         self.resetDisplay()
 
     def on_mainWindow_destroy(self, widget):
@@ -70,39 +82,68 @@ class MyPhotoBoothApp(object):
         camera.takePictures(self.numpics)
         camera = None
         self.processPictures()
-        self.resetDisplay()
+        glib.timeout_add_seconds(10, self.resetDisplay)
+
+    def display_picture(self):
+        if self.index >= len(self.files):
+            print "no more images to display"
+            self.picturesDisplayed = True
+            time.sleep(5)
+            self.resetDisplay()
+            return False
+        else:
+            print "displaying image: %s" % self.files[self.index]
+            #self.imageWidget.set_from_file(self.files[self.index])
+            rect = self.imageWidget.get_allocation()
+            self.imageWidget.set_from_pixbuf(
+                gtk.gdk.pixbuf_new_from_file_at_scale(self.files[self.index],
+                                                      rect.width,
+                                                      rect.height, True))
+            self.index += 1
+            return True
+
+    def archivePictures(self, files, tmpdir):
+        if self.upThread is None or not self.upThread.isAlive():
+            self.picturesUploaded = True
+        if (self.picturesDisplayed and self.picturesUploaded and self.picturesEmailed):
+            if not os.path.exists(self.archivedir):
+                logging.warn("%s not found, creating" % self.archivedir)
+                os.makedirs(self.archivedir)
+            logging.debug("Moving files to: %s" % self.archivedir)
+            for file in files:
+                newfile = os.path.join(self.archivedir,
+                                       "photobooth-%s.jpg" % datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
+                shutil.move(file, newfile)
+            logging.debug("removing tempdir: %s" % tmpdir)
+            shutil.rmtree(tmpdir) 
+            # return False so that glib.timeout_add_seconds doesn't fire again
+            return False
+        # return True so that glib.timeout_add_seconds will fire again
+        return True
 
     def processPictures(self):
         tmpdir = tempfile.mkdtemp(prefix="myphotobooth")
         logging.debug("created tempdir: %s" % tmpdir)
         self.downloadPictures(tmpdir)
+ 
+        # create photostrip and place in tmpdir
 
         # display pictures breifly in order
+        self.files = [os.path.join(tmpdir,file) for file in os.listdir(tmpdir)]
+        glib.timeout_add_seconds(5, self.display_picture)
+        self.imageWindow.show_all()
+        self.imageWindow.maximize()
         
-        # create photostrip and place in tmpdir
+        if self.flickrUploader is not None:
+            self.upThread = threading.Thread(target=self.flickrUploader.uploadPictures,
+                                             args=(self.files, self.picturesUploaded))
+            self.upThread.start()
         
-        # display photostrip ( have resetDisplay clear this )
-
+        # email pictures/photostrip from self.files
+        self.picturesEmailed = True
+        
         # archive pictures/photostrip to self.archivedir
-        if not os.path.exists(self.archivedir):
-            logging.warn("%s not found, creating" % self.archivedir)
-            os.makedirs(self.archivedir)
-        logging.debug("Moving files to: %s" % self.archivedir)
-        for file in os.listdir(tmpdir):
-            newfile = os.path.join(self.archivedir,
-                                   "photobooth-%s.jpg" % datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
-            shutil.move(os.path.join(tmpdir,file),
-                        newfile)
-
-            # upload pictures/photostrip to Flickr
-            if self.flickrUploader is not None:
-                self.flickrUploader.uploadPicture(newfile)
-            # email pictures/photostrip to list for emailing
-        
-        # email pictures/photostrip from list
-        
-        logging.debug("removing tempdir: %s" % tmpdir)
-        shutil.rmtree(tmpdir)                
+        glib.timeout_add_seconds(30, self.archivePictures, self.files, tmpdir)
 
     def downloadPictures(self, dir):
         os.chdir(dir)
@@ -111,10 +152,24 @@ class MyPhotoBoothApp(object):
         logging.debug("files downloaded: %s" % os.listdir(dir))
 
     def resetDisplay(self):
-        logging.debug("resetting display")
-        self.emailTextbox.set_text("")
-        logging.debug("ready for next person")
-        self.statusbar.push(0, "Ready")
+        if self.picturesDisplayed:
+            logging.debug("resetting display")
+            self.emailTextbox.set_text("")
+            self.imageWindow.hide()
+            self.imageWidget.clear()
+            self.index = 0
+            self.upThread = None
+            self.picturesDisplayed = False
+            self.picturesUploaded = False
+            self.picturesEmailed = False
+            self.upThread = None
+            self.emailThread = None
+            logging.debug("ready for next person")
+            self.statusbar.push(0, "Ready")
+            # return False so that glib.timeout_add_seconds doesn't fire again
+            return False
+        # return True so that glib.timeout_add_seconds will fire again
+        return True
 
 
 class Camera(object):
@@ -171,6 +226,9 @@ class FlickrUploader(object):
         self.flickr.get_token_part_two((token, frob))
         print self.flickr_set
 
+    def uploadPictures(self, files):
+        for file in files:
+            self.uploadPicture(file)
     
     def uploadPicture(self, filename):
         print "Uploading picture to flickr"
@@ -208,7 +266,7 @@ def main():
         config.read(configfile)
         if config.get('myphotobooth', 'debug'):
             logger.setLevel(logging.DEBUG)
-        if config.get('myphotobooth', 'useFlickr'):
+        if config.get('myphotobooth', 'useFlickr') is True:
             flickrUploader = FlickrUploader(config.get('myphotobooth',                                         
                                                        'flickr_api_key'),
                                             config.get('myphotobooth', 

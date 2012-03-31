@@ -21,27 +21,31 @@ flickr_set: myphotobooth
 
 Current TODO
 ============
-- Display pictures after downloaded briefly in order
+- Need to factor out the code that takes process the pictures from the MyPhotoBoothApp class so that we aren't overwriting the variables to indicate that things have been uploaded, emailed, leave the code in place to display pictures though
+- Make sure that files display in order
+- If no picture is available, display something that shows loading, etc so that we don't show a broken image
 - Figure out way to deselect the go button after run is complete
 - Create photostrip
     - merge pictures with template
     - Display photostrip until ready for next shoot
 - archive photostrip
 - Add asynchronous operation for upload tasks (flickr/email) so that there is not as much a delay between uses
-    - show pictures for a set amount of time, and then show photostrip for a set amount of time before next use
-    - possibly set to show picture shortly after taking, rinse and repeat until number of photos wanted for strip is taken, instead of firing pictures in succession
-    - would be great to have a live view of the cam, or at least the review type picture from camera instead of having to wait for download
+- Make imageWindow display of pictures parallel with the processing of photostrip and uploading, emailing and archiving tasks
+- Make sure email task also includes links to flickr photos
+- show pictures for a set amount of time, and then show photostrip for a set amount of time before next use
+- possibly set to show picture shortly after taking, rinse and repeat until number of photos wanted for strip is taken, instead of firing pictures in succession
+- would be great to have a live view of the cam, or at least the review type picture from camera instead of having to wait for download
 - email pictures and photostrip to user if emailAddress entered
     - http://docs.python.org/library/email-examples.html 
     - also, for my use, will need to setup relay to ISP mail host on 
       local smtp server
 - Add to config file parsing
-    - flickr bool
-    - flickr acct info
+    - flickr bool (Fix)
     - email from address
     - email relay info
     - banner graphic
     - photostrip template
+    - how long to display each image
 
 Future TODO
 ===========
@@ -49,6 +53,8 @@ Future TODO
 - Config file option for flickr visibility (currently forces is_public)
 - GUI for flickr api approval
     - currently command line based
+    - popup is defined in myphotobooth.glade
+    - should move ConfigFile parsing to MyPhotoBoothApp class (That way FlickrUploader is initiated after the gtk builder is created)
 - Better Error Checking/handling
     - flickr api
     - others
