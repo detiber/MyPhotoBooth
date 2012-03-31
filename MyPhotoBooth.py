@@ -156,6 +156,7 @@ class Camera(object):
         self.conn.expect(pexpect.EOF)
         logging.debug('connection closed')
 
+
 class FlickrUploader(object):
     def __init__(self, api_key, api_secret, flickr_set):
         self.api_key = api_key
@@ -169,8 +170,8 @@ class FlickrUploader(object):
             raw_input("Press ENTER after you authorized this program")
         self.flickr.get_token_part_two((token, frob))
         print self.flickr_set
-#self.test()
 
+    
     def uploadPicture(self, filename):
         print "Uploading picture to flickr"
         photoid = self.flickr.upload(filename=filename,is_public=1).find('photoid').text
@@ -200,16 +201,6 @@ class FlickrUploader(object):
                                                                self.flickr_set_id)
 
 
-def test(self):
-        sets = self.flickr.photosets_getList().find('photosets').findall('photoset')
-        for set in sets:
-            print(set)
-            dump(set)
-            title=set.find('title').text
-            print title
-            print set.get('id')
-
-
 def main():
     config = ConfigParser.SafeConfigParser(allow_no_value=True)
     configfile = '/etc/myphotobooth.conf'
@@ -237,8 +228,6 @@ def main():
         logging.warn("Config file %s not found, using defaults" % configfile)
         app = MyPhotoBoothApp(False)
         gtk.main()
-        
-
 
 
 if __name__ == '__main__':
