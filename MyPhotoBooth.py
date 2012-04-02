@@ -28,7 +28,6 @@ import tempfile
 import os
 import shutil
 import ConfigParser
-import logging
 import flickrapi
 import datetime
 import glib
@@ -36,23 +35,11 @@ import threading
 from xml.etree.ElementTree import Element, ElementTree, dump
 
 
-logging.basicConfig()
-logger = logging.StreamHandler()
-logger.setLevel(logging.WARNING)
-
-
 class MyPhotoBoothApp(object):
-    def __init__(self, numpics=None, archivedir=None, 
-                 flickrUploader=None):
-        if numpics == None:
-            self.numpics = 4
-        else: 
-            self.numpics = numpics
-        if archivedir == None:
-            self.archivedir = '%s/myphotobooth' % os.getenv("HOME")
-        else:
-            self.archivedir = archivedir
-        self.flickrUploader = flickrUploader
+    def __init__(self, config): #numpics=None, archivedir=None, flickrUploader=None):
+        self.config = config
+        self.archivedir = self.config.archive_dir()
+#        self.flickrUploader = flickrUploader
         self.builder = gtk.Builder()
         self.builder.add_from_file("myphotobooth.glade")
         self.builder.connect_signals(self)
@@ -64,36 +51,34 @@ class MyPhotoBoothApp(object):
         self.statusbar = self.builder.get_object("statusbar")
         self.emailTextbox = self.builder.get_object("emailTextbox")
         self.index = 0
-        self.upThread = None
         self.picturesDisplayed = False
-        self.picturesUploaded = False
-        self.picturesEmailed = False
-        self.upThread = None
-        self.emailThread = None
         self.resetDisplay()
+        self.ppThread = None
+        self.lock = None
 
     def on_mainWindow_destroy(self, widget):
         gtk.main_quit()
 
     def on_button_clicked(self, widget):
-        logging.debug("Email Address: %s" % self.emailTextbox.get_text())
+        print "Email Address: %s" % self.emailTextbox.get_text()
         self.statusbar.push(0, "")
-        camera = Camera()
-        camera.takePictures(self.numpics)
+        camera = Camera(self.config)
+        camera.takePictures()
         camera = None
         self.processPictures()
         glib.timeout_add_seconds(10, self.resetDisplay)
 
-    def display_picture(self):
+    def display_picture(self, lock):
         if self.index >= len(self.files):
             print "no more images to display"
             self.picturesDisplayed = True
             time.sleep(5)
+            lock.release()
+            print "lock released in display_pictures: %s" % lock
             self.resetDisplay()
             return False
         else:
             print "displaying image: %s" % self.files[self.index]
-            #self.imageWidget.set_from_file(self.files[self.index])
             rect = self.imageWidget.get_allocation()
             self.imageWidget.set_from_pixbuf(
                 gtk.gdk.pixbuf_new_from_file_at_scale(self.files[self.index],
@@ -103,57 +88,71 @@ class MyPhotoBoothApp(object):
             return True
 
     def archivePictures(self, files, tmpdir):
-        if self.upThread is None or not self.upThread.isAlive():
-            self.picturesUploaded = True
-        if (self.picturesDisplayed and self.picturesUploaded and self.picturesEmailed):
-            if not os.path.exists(self.archivedir):
-                logging.warn("%s not found, creating" % self.archivedir)
-                os.makedirs(self.archivedir)
-            logging.debug("Moving files to: %s" % self.archivedir)
-            for file in files:
-                newfile = os.path.join(self.archivedir,
-                                       "photobooth-%s.jpg" % datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
-                shutil.move(file, newfile)
-            logging.debug("removing tempdir: %s" % tmpdir)
-            shutil.rmtree(tmpdir) 
-            # return False so that glib.timeout_add_seconds doesn't fire again
-            return False
-        # return True so that glib.timeout_add_seconds will fire again
-        return True
+        if not os.path.exists(self.archivedir):
+            print "%s not found, creating" % self.archivedir
+            os.makedirs(self.archivedir)
+        print "Moving files to: %s" % self.archivedir
+        for file in files:
+            newfile = os.path.join(self.archivedir,
+                                   "photobooth-%s.jpg" % datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
+            shutil.move(file, newfile)
+        print "removing tempdir: %s" % tmpdir
+        shutil.rmtree(tmpdir)
 
     def processPictures(self):
         tmpdir = tempfile.mkdtemp(prefix="myphotobooth")
-        logging.debug("created tempdir: %s" % tmpdir)
+        print "created tempdir: %s" % tmpdir
         self.downloadPictures(tmpdir)
  
         # create photostrip and place in tmpdir
 
+        
+        # create a lock for thread synchronization
+        self.lock = threading.Lock()
+        self.lock.acquire()
+        print "lock aquired in processPictures: %s" % self.lock
+        
         # display pictures breifly in order
         self.files = [os.path.join(tmpdir,file) for file in os.listdir(tmpdir)]
-        glib.timeout_add_seconds(5, self.display_picture)
+        self.files.sort()
+        glib.timeout_add_seconds(5, self.display_picture, self.lock)
         self.imageWindow.show_all()
         self.imageWindow.maximize()
         
-        if self.flickrUploader is not None:
-            self.upThread = threading.Thread(target=self.flickrUploader.uploadPictures,
-                                             args=(self.files, self.picturesUploaded))
-            self.upThread.start()
-        
+        self.ppThread = threading.Thread(target=self.postProcessPictures,
+                                        args=(self.files, tmpdir, self.config, self.lock))
+        self.ppThread.daemon = True
+        self.ppThread.start()
+
+    def postProcessPictures(self, files, tmpdir, config, lock):
+        # make sure everything is local, since this will be spawned off as a daemon proces
+        # and the values for the object could change underneath us
+
+        # Block until we know that display_pictures has released the lock aquired in
+        # process_pictures, then we know that we can safely delete the tmpdir
+        lock.acquire()
+        lock.release()
+        print "lock aquired and released in postProcessPictures: %s" % lock
+        if config.use_flickr() is True:
+            flickrUploader = FlickrUploader(config.flickr_api_key(),
+                                            config.flickr_api_secret(),
+                                            config.flickr_set())
+            flickrUploader.uploadPictures(files)
+
         # email pictures/photostrip from self.files
-        self.picturesEmailed = True
         
         # archive pictures/photostrip to self.archivedir
-        glib.timeout_add_seconds(30, self.archivePictures, self.files, tmpdir)
+        self.archivePictures(files, tmpdir)
 
     def downloadPictures(self, dir):
         os.chdir(dir)
         os.system('gphoto2 -P --force-overwrite')
         os.system('gphoto2 -DR')
-        logging.debug("files downloaded: %s" % os.listdir(dir))
+        print "files downloaded: %s" % os.listdir(dir)
 
     def resetDisplay(self):
         if self.picturesDisplayed:
-            logging.debug("resetting display")
+            print "resetting display"
             self.emailTextbox.set_text("")
             self.imageWindow.hide()
             self.imageWidget.clear()
@@ -164,7 +163,7 @@ class MyPhotoBoothApp(object):
             self.picturesEmailed = False
             self.upThread = None
             self.emailThread = None
-            logging.debug("ready for next person")
+            print "ready for next person"
             self.statusbar.push(0, "Ready")
             # return False so that glib.timeout_add_seconds doesn't fire again
             return False
@@ -173,43 +172,44 @@ class MyPhotoBoothApp(object):
 
 
 class Camera(object):
-    def __init__(self):
-        logging.debug('connecting camera')
+    def __init__(self, config):
+        self.config = config
+        print 'connecting camera'
         self.conn = pexpect.spawn('ptpcam --chdk', timeout=15)
         check = self.connectionCheck()
         while check == 1:
             check = self.connectionCheck()
     
-    def takePictures(self, numpics):
+    def takePictures(self):
         self.conn.sendline('mode 1')
-        logging.debug('opening lens')
+        print 'opening lens'
         time.sleep(5)
         self.conn.expect('<conn>')
-        logging.debug('lens opened')
-        logging.debug("getting ready to take %s pictures" % numpics)
+        print 'lens opened'
+        print "getting ready to take %s pictures" % self.config.num_pics()
         command="lua "
-        for i in range(numpics):
+        for i in range(self.config.num_pics()):
             command += "shoot();"
-        logging.debug("issuing command: %s" % command)
+        print "issuing command: %s" % command
         self.conn.sendline(command)
-        time.sleep(numpics * 5)
-        logging.debug('%s pics snapped' % numpics)
+        time.sleep(self.config.num_pics() * 5)
+        print '%s pics snapped' % self.config.num_pics()
 
     def connectionCheck(self):
-        logging.debug('testing camera connection')
+        print 'testing camera connection'
         self.conn.sendline('r')
         i = self.conn.expect (['<conn>', 'ERROR: Could not open session!', 'ERROR: Could not close session!', '<    >'])
         if i == 0:
-            logging.debug('camera connected')
+            print 'camera connected'
             return 0
         else:
             return 1
 
     def __del__(self):
-        logging.debug('closing camera connection...')
+        print 'closing camera connection...'
         self.conn.sendline('quit')
         self.conn.expect(pexpect.EOF)
-        logging.debug('connection closed')
+        print 'connection closed'
 
 
 class FlickrUploader(object):
@@ -259,33 +259,46 @@ class FlickrUploader(object):
                                                                self.flickr_set_id)
 
 
-def main():
-    config = ConfigParser.SafeConfigParser(allow_no_value=True)
-    configfile = '/etc/myphotobooth.conf'
-    try:
-        config.read(configfile)
-        if config.get('myphotobooth', 'debug'):
-            logger.setLevel(logging.DEBUG)
-        if config.get('myphotobooth', 'useFlickr') is True:
-            flickrUploader = FlickrUploader(config.get('myphotobooth',                                         
-                                                       'flickr_api_key'),
-                                            config.get('myphotobooth', 
-                                                       'flickr_api_secret'),
-                                            config.get('myphotobooth',
-                                                       'flickr_set'))
+class Config(object):
+    def __init__(self, configfile):
+        self.config = ConfigParser.SafeConfigParser(allow_no_value=True)
+        self.config.read(configfile)
+        
+    def use_flickr(self):
+        if self.config.get('myphotobooth', 'useFlickr'):
+            return True
         else:
-            flickrUploader = None
-    
-        numpics = config.get('myphotobooth', 'numpics')
-        archivedir = config.get('myphotobooth', 'archivedir')
-        app = MyPhotoBoothApp(numpics = int(numpics), 
-                              archivedir = archivedir,
-                              flickrUploader = flickrUploader)
-        gtk.main()
-    except ConfigParser.NoSectionError:
-        logging.warn("Config file %s not found, using defaults" % configfile)
-        app = MyPhotoBoothApp(False)
-        gtk.main()
+            return False
+
+    def flickr_api_key(self):
+        if self.use_flickr():
+            return self.config.get('myphotobooth', 'flickr_api_key')
+        else:
+            return None
+            
+    def flickr_api_secret(self):
+        if self.use_flickr():
+            return self.config.get('myphotobooth', 'flickr_api_secret')
+        else:
+            return None
+
+    def flickr_set(self):
+        if self.use_flickr():
+            return self.config.get('myphotobooth', 'flickr_set')
+        else:
+            return None
+
+    def num_pics(self):
+        return int(self.config.get('myphotobooth', 'numpics'))
+
+    def archive_dir(self):
+        return self.config.get('myphotobooth', 'archivedir')
+
+
+def main():
+    config = Config('/etc/myphotobooth.conf')
+    app = MyPhotoBoothApp(config)
+    gtk.main()
 
 
 if __name__ == '__main__':

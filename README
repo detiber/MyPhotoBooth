@@ -4,14 +4,12 @@ Requirements
     - python-flickr
 
 defaults:
-    debug: False
     archivedir: ~/myphotobooth
     numpics: 4
     useFlickr: False
 
 To override defaults create /etc/myphotobooth.conf
 [myphotobooth]
-debug: True
 archivedir: /home/detiber/firstbirthday
 numpics: 4
 useFlickr: True
@@ -21,18 +19,15 @@ flickr_set: myphotobooth
 
 Current TODO
 ============
-- Need to factor out the code that takes process the pictures from the MyPhotoBoothApp class so that we aren't overwriting the variables to indicate that things have been uploaded, emailed, leave the code in place to display pictures though
-- Make sure that files display in order
+- Figure out why flickruploader seems borked since putting in bg process
+- Add error checking to create popup if something goes awry
 - If no picture is available, display something that shows loading, etc so that we don't show a broken image
 - Figure out way to deselect the go button after run is complete
 - Create photostrip
     - merge pictures with template
     - Display photostrip until ready for next shoot
 - archive photostrip
-- Add asynchronous operation for upload tasks (flickr/email) so that there is not as much a delay between uses
-- Make imageWindow display of pictures parallel with the processing of photostrip and uploading, emailing and archiving tasks
 - Make sure email task also includes links to flickr photos
-- show pictures for a set amount of time, and then show photostrip for a set amount of time before next use
 - possibly set to show picture shortly after taking, rinse and repeat until number of photos wanted for strip is taken, instead of firing pictures in succession
 - would be great to have a live view of the cam, or at least the review type picture from camera instead of having to wait for download
 - email pictures and photostrip to user if emailAddress entered
@@ -46,6 +41,8 @@ Current TODO
     - banner graphic
     - photostrip template
     - how long to display each image
+- fix config file parsing to gracefully handle missing values
+- Cleanup config class and make more pythonic
 
 Future TODO
 ===========
@@ -59,7 +56,7 @@ Future TODO
     - flickr api
     - others
 - Logging
-    - fix stdout/stderr logging with flickrapi included
+    - switch to a logging module, (default python logging is broken with python-flickrapi)
     - add log based logging
 - Add support for other tetherable cameras
 - Add support for other photosharing sites
