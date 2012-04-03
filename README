@@ -19,7 +19,6 @@ flickr_set: myphotobooth
 
 Current TODO
 ============
-- Figure out why flickruploader seems borked since putting in bg process
 - Add error checking to create popup if something goes awry
 - If no picture is available, display something that shows loading, etc so that we don't show a broken image
 - Figure out way to deselect the go button after run is complete
@@ -43,6 +42,7 @@ Current TODO
     - how long to display each image
 - fix config file parsing to gracefully handle missing values
 - Cleanup config class and make more pythonic
+- Currently when the app is closed, the child(daemon processes) are killed, find a way to either keep them alive or to keep the app from closing until they have finished.
 
 Future TODO
 ===========

@@ -31,7 +31,7 @@ import ConfigParser
 import flickrapi
 import datetime
 import glib
-import threading
+from multiprocessing import Process, Lock
 from xml.etree.ElementTree import Element, ElementTree, dump
 
 
@@ -39,7 +39,6 @@ class MyPhotoBoothApp(object):
     def __init__(self, config): #numpics=None, archivedir=None, flickrUploader=None):
         self.config = config
         self.archivedir = self.config.archive_dir()
-#        self.flickrUploader = flickrUploader
         self.builder = gtk.Builder()
         self.builder.add_from_file("myphotobooth.glade")
         self.builder.connect_signals(self)
@@ -53,8 +52,6 @@ class MyPhotoBoothApp(object):
         self.index = 0
         self.picturesDisplayed = False
         self.resetDisplay()
-        self.ppThread = None
-        self.lock = None
 
     def on_mainWindow_destroy(self, widget):
         gtk.main_quit()
@@ -87,18 +84,6 @@ class MyPhotoBoothApp(object):
             self.index += 1
             return True
 
-    def archivePictures(self, files, tmpdir):
-        if not os.path.exists(self.archivedir):
-            print "%s not found, creating" % self.archivedir
-            os.makedirs(self.archivedir)
-        print "Moving files to: %s" % self.archivedir
-        for file in files:
-            newfile = os.path.join(self.archivedir,
-                                   "photobooth-%s.jpg" % datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
-            shutil.move(file, newfile)
-        print "removing tempdir: %s" % tmpdir
-        shutil.rmtree(tmpdir)
-
     def processPictures(self):
         tmpdir = tempfile.mkdtemp(prefix="myphotobooth")
         print "created tempdir: %s" % tmpdir
@@ -107,42 +92,22 @@ class MyPhotoBoothApp(object):
         # create photostrip and place in tmpdir
 
         
-        # create a lock for thread synchronization
-        self.lock = threading.Lock()
-        self.lock.acquire()
-        print "lock aquired in processPictures: %s" % self.lock
+        # create a lock for process synchronization
+        lock = Lock()
+        lock.acquire()
+        print "lock aquired in processPictures: %s" % lock
         
         # display pictures breifly in order
         self.files = [os.path.join(tmpdir,file) for file in os.listdir(tmpdir)]
         self.files.sort()
-        glib.timeout_add_seconds(5, self.display_picture, self.lock)
+        glib.timeout_add_seconds(5, self.display_picture, lock)
         self.imageWindow.show_all()
         self.imageWindow.maximize()
         
-        self.ppThread = threading.Thread(target=self.postProcessPictures,
-                                        args=(self.files, tmpdir, self.config, self.lock))
-        self.ppThread.daemon = True
-        self.ppThread.start()
-
-    def postProcessPictures(self, files, tmpdir, config, lock):
-        # make sure everything is local, since this will be spawned off as a daemon proces
-        # and the values for the object could change underneath us
-
-        # Block until we know that display_pictures has released the lock aquired in
-        # process_pictures, then we know that we can safely delete the tmpdir
-        lock.acquire()
-        lock.release()
-        print "lock aquired and released in postProcessPictures: %s" % lock
-        if config.use_flickr() is True:
-            flickrUploader = FlickrUploader(config.flickr_api_key(),
-                                            config.flickr_api_secret(),
-                                            config.flickr_set())
-            flickrUploader.uploadPictures(files)
-
-        # email pictures/photostrip from self.files
-        
-        # archive pictures/photostrip to self.archivedir
-        self.archivePictures(files, tmpdir)
+        ppProc = Process(target=postProcessPictures,
+                            args=(self.files, tmpdir, self.archivedir, self.config, lock))
+        ppProc.daemon = True
+        ppProc.start()
 
     def downloadPictures(self, dir):
         os.chdir(dir)
@@ -157,12 +122,9 @@ class MyPhotoBoothApp(object):
             self.imageWindow.hide()
             self.imageWidget.clear()
             self.index = 0
-            self.upThread = None
             self.picturesDisplayed = False
             self.picturesUploaded = False
             self.picturesEmailed = False
-            self.upThread = None
-            self.emailThread = None
             print "ready for next person"
             self.statusbar.push(0, "Ready")
             # return False so that glib.timeout_add_seconds doesn't fire again
@@ -293,6 +255,37 @@ class Config(object):
 
     def archive_dir(self):
         return self.config.get('myphotobooth', 'archivedir')
+
+
+def postProcessPictures(files, tmpdir, archivedir, config, lock):
+    # Block until we know that display_pictures has released the lock aquired in
+    # process_pictures, then we know that we can safely delete the tmpdir
+    lock.acquire()
+    lock.release()
+    print "lock aquired and released in postProcessPictures: %s" % lock
+    if config.use_flickr() is True:
+        flickrUploader = FlickrUploader(config.flickr_api_key(),
+                                        config.flickr_api_secret(),
+                                        config.flickr_set())
+        flickrUploader.uploadPictures(files)
+
+    # email pictures/photostrip from self.files
+    
+    # archive pictures/photostrip to self.archivedir
+    archivePictures(files, tmpdir, archivedir)
+
+
+def archivePictures(files, tmpdir, archivedir):
+    if not os.path.exists(archivedir):
+        print "%s not found, creating" % archivedir
+        os.makedirs(archivedir)
+    print "Moving files to: %s" % archivedir
+    for i in range(len(files)):
+        newfile = os.path.join(archivedir,
+                "photobooth-%s%s.jpg" % (datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"), i))
+        shutil.move(files[i], newfile)
+    print "removing tempdir: %s" % tmpdir
+    shutil.rmtree(tmpdir)
 
 
 def main():
