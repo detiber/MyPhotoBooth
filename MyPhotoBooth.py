@@ -188,9 +188,14 @@ class FlickrUploader(object):
         self.flickr.get_token_part_two((token, frob))
         print self.flickr_set
 
+
     def uploadPictures(self, files):
+        urls = []
         for file in files:
-            self.uploadPicture(file)
+            urls.extend(self.uploadPicture(file))
+        print "URLs for uploaded pictures: %s" % str(urls)
+        return urls
+
     
     def uploadPicture(self, filename):
         print "Uploading picture to flickr"
@@ -211,7 +216,6 @@ class FlickrUploader(object):
                     print "Adding photoid: %s to Existing set: %s %s" % (photoid,
                                                                          self.flickr_set,
                                                                          self.flickr_set_id)
-
                     break
             if self.flickr_set_id is None:
                 result = self.flickr.photosets_create(title=self.flickr_set, primary_photo_id=photoid)
@@ -219,6 +223,11 @@ class FlickrUploader(object):
                 print "Added photoid: %s to new set: %s %s" % (photoid,
                                                                self.flickr_set,
                                                                self.flickr_set_id)
+        urls = []
+        for url in self.flickr.photos_getInfo(photo_id=photoid).find('photo').find('urls').findall('url'):
+            urls.append(url.text)
+        print "URL(s) for added photo: %s" % str(urls)
+        return urls
 
 
 class Config(object):
@@ -263,11 +272,18 @@ def postProcessPictures(files, tmpdir, archivedir, config, lock):
     lock.acquire()
     lock.release()
     print "lock aquired and released in postProcessPictures: %s" % lock
+    flickrurls = None
     if config.use_flickr() is True:
         flickrUploader = FlickrUploader(config.flickr_api_key(),
                                         config.flickr_api_secret(),
                                         config.flickr_set())
-        flickrUploader.uploadPictures(files)
+        flickrurls = flickrUploader.uploadPictures(files)
+
+    if flickrurls is not None:
+        print "Flickr URLs: %s" % str(flickrurls)
+    else:
+        print "No flickrurls found."
+
 
     # email pictures/photostrip from self.files
     

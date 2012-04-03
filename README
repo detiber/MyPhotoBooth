@@ -21,18 +21,20 @@ Current TODO
 ============
 - Add error checking to create popup if something goes awry
 - If no picture is available, display something that shows loading, etc so that we don't show a broken image
-- Figure out way to deselect the go button after run is complete
+- Figure out way to deselect the go button after run is complete (think the best thing is to go ahead and open up the picture viewer with the default page showing a please wait page)
 - Create photostrip
     - merge pictures with template
     - Display photostrip until ready for next shoot
 - archive photostrip
 - Make sure email task also includes links to flickr photos
-- possibly set to show picture shortly after taking, rinse and repeat until number of photos wanted for strip is taken, instead of firing pictures in succession
-- would be great to have a live view of the cam, or at least the review type picture from camera instead of having to wait for download
 - email pictures and photostrip to user if emailAddress entered
     - http://docs.python.org/library/email-examples.html 
-    - also, for my use, will need to setup relay to ISP mail host on 
-      local smtp server
+- Currently when the app is closed, the child(daemon processes) are killed, find a way to either keep them alive or to keep the app from closing until they have finished.
+- Fix camera script to test doing things before doing them (like test if lens open before opening)
+
+Future TODO
+===========
+- Cleanup config class and make more pythonic
 - Add to config file parsing
     - flickr bool (Fix)
     - email from address
@@ -41,11 +43,8 @@ Current TODO
     - photostrip template
     - how long to display each image
 - fix config file parsing to gracefully handle missing values
-- Cleanup config class and make more pythonic
-- Currently when the app is closed, the child(daemon processes) are killed, find a way to either keep them alive or to keep the app from closing until they have finished.
-
-Future TODO
-===========
+- possibly set to show picture shortly after taking, rinse and repeat until number of photos wanted for strip is taken, instead of firing pictures in succession
+- would be great to have a live view of the cam, or at least the review type picture from camera instead of having to wait for download
 - Fix camera hangs (maybe requiring migrating from ptpcam to chdkptp)
 - Config file option for flickr visibility (currently forces is_public)
 - GUI for flickr api approval
