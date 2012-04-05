@@ -33,9 +33,6 @@ Current TODO
     - merge pictures with template
     - Display photostrip until ready for next shoot
 - archive photostrip
-- Make sure email task also includes links to flickr photos
-- email pictures and photostrip to user if emailAddress entered
-    - http://docs.python.org/library/email-examples.html 
 - Currently when the app is closed, the child(daemon processes) are killed, find a way to either keep them alive or to keep the app from closing until they have finished.
 - Fix camera script to test doing things before doing them (like test if lens open before opening)
 

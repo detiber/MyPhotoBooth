@@ -31,6 +31,7 @@ import ConfigParser
 import flickrapi
 import datetime
 import glib
+import inspect
 from multiprocessing import Process, Lock
 from xml.etree.ElementTree import Element, ElementTree, dump
 import smtplib
@@ -40,7 +41,7 @@ from email.mime.text import MIMEText
 
 
 class MyPhotoBoothApp(object):
-    def __init__(self, config): #numpics=None, archivedir=None, flickrUploader=None):
+    def __init__(self, config):
         self.config = config
         self.archivedir = self.config.archive_dir()
         self.builder = gtk.Builder()
@@ -128,8 +129,6 @@ class MyPhotoBoothApp(object):
             self.imageWidget.clear()
             self.index = 0
             self.picturesDisplayed = False
-            self.picturesUploaded = False
-            self.picturesEmailed = False
             print "ready for next person"
             self.statusbar.push(0, "Ready")
             # return False so that glib.timeout_add_seconds doesn't fire again
