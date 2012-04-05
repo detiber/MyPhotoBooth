@@ -2,6 +2,8 @@ Requirements
     - gphoto2
     - ptpcam (part of chdk)
     - python-flickr
+    - imagemagick
+    - python-pythonmagick
 
 defaults:
     archivedir: ~/myphotobooth
@@ -16,6 +18,11 @@ useFlickr: True
 flickr_api_key: XXXXXXXX
 flickr_api_secret: XXXXXX
 flickr_set: myphotobooth
+email_from: me@mine.com
+email_subject: My Subject
+email_body: /path/to/my/emailbody.txt
+email_server: hostname.for.my.email.server.com
+template_file: /home/detiber/photoboothtemplate.jpg
 
 Current TODO
 ============

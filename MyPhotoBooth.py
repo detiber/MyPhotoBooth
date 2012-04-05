@@ -33,6 +33,10 @@ import datetime
 import glib
 from multiprocessing import Process, Lock
 from xml.etree.ElementTree import Element, ElementTree, dump
+import smtplib
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
 class MyPhotoBoothApp(object):
@@ -105,7 +109,8 @@ class MyPhotoBoothApp(object):
         self.imageWindow.maximize()
         
         ppProc = Process(target=postProcessPictures,
-                            args=(self.files, tmpdir, self.archivedir, self.config, lock))
+                            args=(self.files, tmpdir, self.archivedir, self.config, lock,
+                                  self.emailTextbox.get_text()))
         ppProc.daemon = True
         ppProc.start()
 
@@ -193,7 +198,6 @@ class FlickrUploader(object):
         urls = []
         for file in files:
             urls.extend(self.uploadPicture(file))
-        print "URLs for uploaded pictures: %s" % str(urls)
         return urls
 
     
@@ -226,7 +230,6 @@ class FlickrUploader(object):
         urls = []
         for url in self.flickr.photos_getInfo(photo_id=photoid).find('photo').find('urls').findall('url'):
             urls.append(url.text)
-        print "URL(s) for added photo: %s" % str(urls)
         return urls
 
 
@@ -265,8 +268,24 @@ class Config(object):
     def archive_dir(self):
         return self.config.get('myphotobooth', 'archivedir')
 
+    def email_from(self):
+        return self.config.get('myphotobooth', 'email_from')
 
-def postProcessPictures(files, tmpdir, archivedir, config, lock):
+    def email_subject(self):
+        return self.config.get('myphotobooth', 'email_subject')
+
+    def email_body(self):
+        fp = open(self.config.get('myphotobooth', 'email_body'), 'rb')
+        return fp.read()
+
+    def email_server(self):
+        return self.config.get('myphotobooth', 'email_server')
+
+    def template_file(self):
+        return self.config.get('myphotobooth', 'template_file')
+
+
+def postProcessPictures(files, tmpdir, archivedir, config, lock, email_addr):
     # Block until we know that display_pictures has released the lock aquired in
     # process_pictures, then we know that we can safely delete the tmpdir
     lock.acquire()
@@ -284,8 +303,28 @@ def postProcessPictures(files, tmpdir, archivedir, config, lock):
     else:
         print "No flickrurls found."
 
-
-    # email pictures/photostrip from self.files
+    if email_addr is not "":
+        # email pictures/photostrip from files
+        msg = MIMEMultipart()
+        msg['Subject'] = config.email_subject()
+        msg['From'] = config.email_from()
+        msg['To'] = email_addr
+        
+        body = config.email_body()
+        if flickrurls is not None:
+            separator = "\n"
+            body += separator.join(flickrurls)
+        msg.attach(MIMEText(body))
+        
+        for file in files:
+            fp = open(file, 'rb')
+            img = MIMEImage(fp.read())
+            fp.close()
+            msg.attach(img)
+        
+        s = smtplib.SMTP(config.email_server())
+        s.sendmail(config.email_from(), email_addr, msg.as_string())
+        s.quit()
     
     # archive pictures/photostrip to self.archivedir
     archivePictures(files, tmpdir, archivedir)
