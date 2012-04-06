@@ -23,21 +23,20 @@ email_subject: My Subject
 email_body: /path/to/my/emailbody.txt
 email_server: hostname.for.my.email.server.com
 template_file: /home/detiber/photoboothtemplate.jpg
+default_image: /home/detiber/default.png
 
 Current TODO
 ============
 - Add error checking to create popup if something goes awry
-- If no picture is available, display something that shows loading, etc so that we don't show a broken image
-- Figure out way to deselect the go button after run is complete (think the best thing is to go ahead and open up the picture viewer with the default page showing a please wait page)
-- Create photostrip
-    - merge pictures with template
-    - Display photostrip until ready for next shoot
-- archive photostrip
 - Currently when the app is closed, the child(daemon processes) are killed, find a way to either keep them alive or to keep the app from closing until they have finished.
 - Fix camera script to test doing things before doing them (like test if lens open before opening)
 
 Future TODO
 ===========
+- Make photostrip creation more abstract
+    - be able to handle different number of pictures
+    - be able to handle different offsets
+    - possibly switch to using PIL (Python Imaging Library)
 - Cleanup config class and make more pythonic
 - Add to config file parsing
     - flickr bool (Fix)

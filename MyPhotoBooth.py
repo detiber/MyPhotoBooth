@@ -35,6 +35,7 @@ import inspect
 from multiprocessing import Process, Lock
 from xml.etree.ElementTree import Element, ElementTree, dump
 import smtplib
+import PythonMagick
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -50,6 +51,7 @@ class MyPhotoBoothApp(object):
         self.window = self.builder.get_object("mainWindow")
         self.imageWindow = self.builder.get_object("imageWindow")
         self.imageWidget = self.builder.get_object("image")
+        self.imageWidget.set_from_file(self.config.default_image())
         self.window.show()
         self.window.maximize()
         self.statusbar = self.builder.get_object("statusbar")
@@ -63,12 +65,18 @@ class MyPhotoBoothApp(object):
 
     def on_button_clicked(self, widget):
         print "Email Address: %s" % self.emailTextbox.get_text()
+        self.imageWindow.show_all()
+        self.imageWindow.maximize()
         self.statusbar.push(0, "")
+        glib.timeout_add_seconds(1, self.fireEvent)
+
+    def fireEvent(self):
         camera = Camera(self.config)
         camera.takePictures()
         camera = None
         self.processPictures()
         glib.timeout_add_seconds(10, self.resetDisplay)
+        return False        
 
     def display_picture(self, lock):
         if self.index >= len(self.files):
@@ -93,21 +101,35 @@ class MyPhotoBoothApp(object):
         tmpdir = tempfile.mkdtemp(prefix="myphotobooth")
         print "created tempdir: %s" % tmpdir
         self.downloadPictures(tmpdir)
- 
-        # create photostrip and place in tmpdir
-
+        self.files = [os.path.join(tmpdir,file) for file in os.listdir(tmpdir)]
+        self.files.sort()
         
+        # create photostrip and place in tmpdir
+        # need to abstract this to handle multiple numbers
+        # of pictures and different offsets
+        photostrip = PythonMagick.Image(self.config.template_file())
+        pic1 = PythonMagick.Image(self.files[0])
+        pic1.transform('119x89')
+        print "pic1: %sx%s" % (pic1.size().width(), pic1.size().height())
+        photostrip.composite(pic1, 12, 91)
+        pic2 = PythonMagick.Image(self.files[1])
+        pic2.transform('119x89')
+        print "pic2: %sx%s" % (pic2.size().width(), pic2.size().height())
+        photostrip.composite(pic2, 156, 91)
+        pic3 = PythonMagick.Image(self.files[2])
+        pic3.transform('119x89')
+        print "pic3: %sx%s" % (pic3.size().width(), pic3.size().height())
+        photostrip.composite(pic3, 300, 91)
+        photostrip.write(os.path.join(tmpdir,'photostrip.jpg'))
+        self.files.append(os.path.join(tmpdir,'photostrip.jpg'))
+
         # create a lock for process synchronization
         lock = Lock()
         lock.acquire()
         print "lock aquired in processPictures: %s" % lock
         
         # display pictures breifly in order
-        self.files = [os.path.join(tmpdir,file) for file in os.listdir(tmpdir)]
-        self.files.sort()
         glib.timeout_add_seconds(5, self.display_picture, lock)
-        self.imageWindow.show_all()
-        self.imageWindow.maximize()
         
         ppProc = Process(target=postProcessPictures,
                             args=(self.files, tmpdir, self.archivedir, self.config, lock,
@@ -126,7 +148,11 @@ class MyPhotoBoothApp(object):
             print "resetting display"
             self.emailTextbox.set_text("")
             self.imageWindow.hide()
-            self.imageWidget.clear()
+            rect = self.imageWidget.get_allocation()
+            self.imageWidget.set_from_pixbuf(
+                gtk.gdk.pixbuf_new_from_file_at_scale(self.config.default_image(),
+                                                      rect.width,
+                                                      rect.height, True))
             self.index = 0
             self.picturesDisplayed = False
             print "ready for next person"
@@ -149,7 +175,7 @@ class Camera(object):
     def takePictures(self):
         self.conn.sendline('mode 1')
         print 'opening lens'
-        time.sleep(5)
+        time.sleep(6)
         self.conn.expect('<conn>')
         print 'lens opened'
         print "getting ready to take %s pictures" % self.config.num_pics()
@@ -238,7 +264,7 @@ class Config(object):
         self.config.read(configfile)
         
     def use_flickr(self):
-        if self.config.get('myphotobooth', 'useFlickr'):
+        if self.config.get('myphotobooth', 'useFlickr') == 'True':
             return True
         else:
             return False
@@ -282,6 +308,9 @@ class Config(object):
 
     def template_file(self):
         return self.config.get('myphotobooth', 'template_file')
+    
+    def default_image(self):
+        return self.config.get('myphotobooth', 'default_image')
 
 
 def postProcessPictures(files, tmpdir, archivedir, config, lock, email_addr):
