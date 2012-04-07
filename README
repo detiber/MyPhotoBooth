@@ -32,6 +32,7 @@ Current TODO
 
 Future TODO
 ===========
+- Better email handling (allow for attaching files to email), will have to take into account sending limits.
 - Make photostrip creation more abstract
     - be able to handle different number of pictures
     - be able to handle different offsets

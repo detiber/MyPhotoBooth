@@ -331,7 +331,7 @@ def postProcessPictures(files, tmpdir, archivedir, config, lock, email_addr):
         print "No flickrurls found."
 
     if email_addr is not "":
-        # email pictures/photostrip from files
+        # email pictures/photostrip links on flickr (if enabled), msg attaching is currently disabled
         msg = MIMEMultipart()
         msg['Subject'] = config.email_subject()
         msg['From'] = config.email_from()
@@ -343,11 +343,11 @@ def postProcessPictures(files, tmpdir, archivedir, config, lock, email_addr):
             body += separator.join(flickrurls)
         msg.attach(MIMEText(body))
         
-        for file in files:
-            fp = open(file, 'rb')
-            img = MIMEImage(fp.read())
-            fp.close()
-            msg.attach(img)
+        #for file in files:
+        #    fp = open(file, 'rb')
+        #    img = MIMEImage(fp.read())
+        #    fp.close()
+        #    msg.attach(img)
         
         s = smtplib.SMTP(config.email_server())
         s.sendmail(config.email_from(), email_addr, msg.as_string())
