@@ -28,7 +28,6 @@ default_image: /home/detiber/default.png
 Current TODO
 ============
 - Add error checking to create popup if something goes awry
-- Currently when the app is closed, the child(daemon processes) are killed, find a way to either keep them alive or to keep the app from closing until they have finished.
 - Fix camera script to test doing things before doing them (like test if lens open before opening)
 
 Future TODO

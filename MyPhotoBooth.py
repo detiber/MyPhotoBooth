@@ -134,7 +134,6 @@ class MyPhotoBoothApp(object):
         ppProc = Process(target=postProcessPictures,
                             args=(self.files, tmpdir, self.archivedir, self.config, lock,
                                   self.emailTextbox.get_text()))
-        ppProc.daemon = True
         ppProc.start()
 
     def downloadPictures(self, dir):
